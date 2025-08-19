@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sharoz Web: Spreadsheet → Pro Table (Search • Multi-Sort • Pagination • Totals)</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg:#0b0f17; --panel:#121826; --panel-2:#0e1422; --text:#e9edf6; --muted:#9aa3b2;
+    --border:#1e2536; --accent:#7aa2f7; --green:#19e28f; --red:#ff6b6b; --blue:#5aa8ff;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1200px 600px at 20% -10%,#162036 0%,transparent 60%),var(--bg);color:var(--text);font:14px/1.45 system-ui}
+  header{position:sticky;top:0;z-index:30;background:linear-gradient(180deg,rgba(11,15,23,.95),rgba(11,15,23,.65));backdrop-filter:saturate(140%) blur(8px);border-bottom:1px solid var(--border)}
+  .wrap{max-width:1200px;margin:0 auto;padding:14px}
+  h1{font-size:20px;margin:0}
+  .sub{color:var(--muted);font-size:12px;margin-top:4px}
+
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:12px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+  .card h3{margin:0 0 8px;font-size:14px;color:#cbd5ff}
+
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .file{padding:9px 12px;border:1px dashed var(--border);background:var(--panel-2);border-radius:12px;cursor:pointer}
+  .file input{display:none}
+  .btn{appearance:none;border:1px solid var(--border);background:var(--panel-2);color:var(--text);padding:9px 12px;border-radius:10px;cursor:pointer}
+  .btn:hover{filter:brightness(1.1)}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  .btn.primary{background:var(--accent);border-color:transparent;color:#0b0f17}
+  .btn.ghost{background:transparent}
+  .select, select, input[type="number"], input[type="text"]{background:#0c1220;border:1px solid var(--border);color:var(--text);border-radius:10px;padding:8px}
+
+  .controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:10px 0}
+  .controls .search{flex:1;display:flex;min-width:220px}
+  .controls .search input{flex:1}
+
+  .totals{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+  .total{padding:8px 10px;border:1px solid var(--border);border-radius:12px;background:var(--panel-2);font-weight:600}
+  .t-blue{color:var(--blue)} .t-green{color:var(--green)} .t-red{color:var(--red)}
+
+  .table-wrap{overflow:auto;max-height:62vh;border:1px solid var(--border);border-radius:12px}
+  table{width:100%;border-collapse:separate;border-spacing:0}
+  th,td{padding:10px 12px;border-bottom:1px solid var(--border);text-align:left;vertical-align:top}
+  thead th{position:sticky;top:150px;background:var(--panel);z-index:5;cursor:pointer;user-select:none}
+  tbody tr:hover td{background:#121a2a}
+  tr.row-green td{background:rgba(25,226,143,.08)}
+  tr.row-red td{background:rgba(255,107,107,.08)}
+  .sort-ind{opacity:.8;margin-left:6px}
+
+  .pager{display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:10px}
+  .page-chip{padding:6px 10px;border-radius:10px;border:1px solid var(--border);background:var(--panel-2)}
+  .muted{color:var(--muted)}
+  a.link{color:var(--accent);text-decoration:none}
+  a.link:hover{text-decoration:underline}
+
+  .help{font-size:12px;color:var(--muted);margin-top:6px}
+
+.search-box {
+      position: relative;
+      width: 350px;
+    }
+
+    .search-box input {
+      width: 100%;
+      padding: 12px 45px 12px 20px;
+      border: none;
+      border-radius: 30px;
+      outline: none;
+      font-size: 16px;
+      background: #161b22;
+      color: #fff;
+      box-shadow: 0 0 8px rgba(0, 255, 255, 0.4);
+      transition: 0.3s ease-in-out;
+    }
+
+    .search-box input:focus {
+      box-shadow: 0 0 15px rgba(0, 255, 180, 0.8);
+      background: #1e242e;
+    }
+
+
+
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <h1>Sharoz Ifrahim made this for Clippers (Content posting walon ke liye) version 2</h1>
+    <h3>"Thank you, my friend! Ricky(Andrew Thomas) ❤️ Your guidance on updating the software was so helpful — you always make things easier with your support and knowledge. I really appreciate you!"  </h3> 
+    <div class="sub">Upload .xlsx/.csv → searchable, sortable, paginated table with live totals.</div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="card">
+    <h3>1) Main Spreadsheet</h3>
+    <div class="row" style="margin-bottom:6px">
+      <label class="file">📄 Choose .xlsx/.csv<input type="file" id="fileMain" accept=".xlsx,.csv" /></label>
+      <span id="sheetWrap" class="select" style="display:none">Sheet: <select id="sheetPicker"></select></span>
+      <button class="btn" id="btnClear" disabled>Clear</button>
+      <span class="chip" id="meta">—</span>
+    </div>
+
+    <div class="controls">
+      <div class="search search-box" style=""><input id="search"   placeholder="Search (comma or space separated for multiple)…" /></div>
+      <span class="select">Page size: <select id="pageSize"><option>10</option><option selected>25</option><option>50</option><option>100</option>
+    <option>500</option>
+    <option>1000</option>
+    <option>1500</option>
+    <option>2000</option>
+    <option selected>3000</option>
+    <option>4000</option>
+    <option>5000</option>
+    
+    </select>
+    
+
+    
+    </span>
+      <span class="select">Views col: <select id="viewsCol">
+        <option value="Tag or Bounty" selected>Tag or Bounty</option>
+      </select></span>
+      <span class="select">Threshold: <input type="number" id="threshold" value="500" min="0" style="width:90px" /></span>
+      <span class="select">Sort by: <select id="sortCol"></select></span>
+      <button class="btn ghost" id="btnExport" disabled>Export filtered CSV</button>
+    </div>
+
+    <div class="totals">
+      <div class="total t-blue" id="tTotal">Total Views: 0</div>
+      <div class="total t-green" id="tAbove">> Threshold Views: 0</div>
+      <div class="total t-red" id="tBelow">≤ Threshold Views: 0</div>
+      <div class="total t-blue" id="vTotal">Total Videos: 0</div>
+      <div class="total t-green" id="vAbove">Videos ≥ Thr: 0</div>
+      <div class="total t-red" id="vBelow">Videos < Thr: 0</div>
+    </div>
+
+    <div class="table-wrap">
+      <table id="tbl">
+        <thead></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="pager" id="pager" style="display:none">
+      <button class="btn" id="prev">◀ Prev</button>
+      <span class="page-chip" id="pageInfo">Page 1 / 1</span>
+      <button class="btn" id="next">Next ▶</button>
+    </div>
+  </section>
+</main>
+
+<script>
+let wbMain=null, allRows=[], columns=[], filtered=[], page=1, pageSize=25;
+let sortState=[]; let viewsColName='', manualSortCol='';
+
+const els={
+  fileMain:document.getElementById('fileMain'),
+  sheetWrap:document.getElementById('sheetWrap'),
+  sheetPicker:document.getElementById('sheetPicker'),
+  btnClear:document.getElementById('btnClear'),
+  meta:document.getElementById('meta'),
+  search:document.getElementById('search'),
+  pageSize:document.getElementById('pageSize'),
+  viewsCol:document.getElementById('viewsCol'),
+  threshold:document.getElementById('threshold'),
+  btnExport:document.getElementById('btnExport'),
+  sortCol:document.getElementById('sortCol'),
+  tTotal:document.getElementById('tTotal'),
+  tAbove:document.getElementById('tAbove'),
+  tBelow:document.getElementById('tBelow'),
+  vTotal:document.getElementById('vTotal'),
+  vAbove:document.getElementById('vAbove'),
+  vBelow:document.getElementById('vBelow'),
+  thead:document.querySelector('#tbl thead'),
+  tbody:document.querySelector('#tbl tbody'),
+  pager:document.getElementById('pager'),
+  prev:document.getElementById('prev'),
+  next:document.getElementById('next'),
+  pageInfo:document.getElementById('pageInfo')
+};
+
+const norm=v=>(v==null?'':String(v)).trim();
+const lc=s=>norm(s).toLowerCase();
+const numberish=v=>{ const n=Number(String(v).replace(/[^0-9.-]/g,'')); return isFinite(n)?n:0; };
+
+function rowsFromSheet(book,name){
+  const ws=book.Sheets[name];
+  return XLSX.utils.sheet_to_json(ws,{defval:'',raw:true});
+}
+
+function detectViewsCol(cols){
+  const cand=['views','total views','view count','plays','impressions'];
+  for(const c of cols){ if(cand.includes(lc(c))) return c; }
+  for(const c of cols){ if(lc(c).includes('view')) return c; }
+  return cols[0]||'';
+}
+
+function buildHead(){
+  els.thead.innerHTML='';
+  const tr=document.createElement('tr');
+  for(const col of columns){
+    const th=document.createElement('th');
+    const label=document.createElement('span'); label.textContent=col; th.appendChild(label);
+    tr.appendChild(th);
+  }
+  els.thead.appendChild(tr);
+}
+
+function applyFiltersAndSort(){
+  const terms = els.search.value.split(/[\s,]+/).map(t=>lc(t)).filter(t=>t.length>0);
+
+  filtered = !terms.length
+    ? [...allRows]
+    : allRows.filter(r =>
+        terms.some(term =>
+          columns.some(k => String(r[k]).toLowerCase().includes(term))
+        )
+      );
+
+  if(manualSortCol){
+    filtered.sort((a,b)=>{
+      const av=String(a[manualSortCol]||'').toLowerCase();
+      const bv=String(b[manualSortCol]||'').toLowerCase();
+      return av.localeCompare(bv);
+    });
+  }
+}
+
+function render(){
+  pageSize=parseInt(els.pageSize.value,10)||25;
+  applyFiltersAndSort();
+
+  const total=filtered.length; const pages=Math.max(1,Math.ceil(total/pageSize));
+  if(page>pages) page=pages; const start=(page-1)*pageSize; const view=filtered.slice(start,start+pageSize);
+
+  buildHead();
+
+  const vKey=viewsColName||''; const thr=Number(els.threshold.value)||0;
+  let tAll=0,tAbove=0,tBelow=0,vAll=0,vAbove=0,vBelow=0;
+
+  els.tbody.innerHTML = view.map(row=>{
+    const vRaw=vKey? row[vKey] : (row['Views']??row['views']??0);
+    const v=numberish(vRaw);
+    tAll+=v; vAll++;
+    if(v>=thr){ tAbove+=v; vAbove++; } else { tBelow+=v; vBelow++; }
+    const cls=v>=thr?'row-green':'row-red';
+    return `<tr class="${cls}">`+
+      columns.map(k=>`<td>${row[k]??''}</td>`).join('')+
+    `</tr>`;
+  }).join('') || `<tr><td class="muted" colspan="${columns.length}">No rows</td></tr>`;
+
+  els.tTotal.textContent=`Total Views: ${tAll.toLocaleString()}`;
+  els.tAbove.textContent=`> Threshold Views: ${tAbove.toLocaleString()}`;
+  els.tBelow.textContent=`≤ Threshold Views: ${tBelow.toLocaleString()}`;
+  els.vTotal.textContent=`Total Videos: ${vAll}`;
+  els.vAbove.textContent=`Videos ≥ Thr: ${vAbove}`;
+  els.vBelow.textContent=`Videos < Thr: ${vBelow}`;
+
+  els.pager.style.display=total>pageSize?'flex':'none';
+  els.pageInfo.textContent=`Page ${page} / ${pages} — ${total.toLocaleString()} rows`;
+  els.prev.disabled=page<=1; els.next.disabled=page>=pages;
+  els.meta.textContent=`${allRows.length.toLocaleString()} × ${columns.length}`;
+  els.btnExport.disabled=allRows.length===0;
+}
+
+function loadBook(book){
+  wbMain=book; const names=book.SheetNames||[];
+  if(names.length>1){ els.sheetWrap.style.display='inline-flex'; els.sheetPicker.innerHTML=names.map(n=>`<option>${n}</option>`).join(''); }
+  else els.sheetWrap.style.display='none';
+  loadSheet(names[0]);
+}
+
+function loadSheet(name){
+  if(!wbMain) return; const rows=rowsFromSheet(wbMain,name);
+  allRows=rows; columns=[...new Set(rows.flatMap(r=>Object.keys(r)))];
+  els.viewsCol.innerHTML=['','— Auto —',...columns].map((c,i)=> i?`<option>${c}</option>`:`<option value="">— Auto —</option>`).join('');
+  els.sortCol.innerHTML=['',...columns].map(c=>`<option>${c}</option>`).join('');
+  const detected=detectViewsCol(columns); viewsColName=detected;
+  page=1; els.search.value='';
+  els.btnClear.disabled=false;
+  render();
+}
+
+function exportCSV(rows){
+  const ws=XLSX.utils.json_to_sheet(rows);
+  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Filtered');
+  const blob=XLSX.write(wb,{bookType:'csv',type:'array'});
+  const url=URL.createObjectURL(new Blob([blob],{type:'text/csv'}));
+  const a=document.createElement('a'); a.href=url; a.download='filtered.csv'; a.click(); URL.revokeObjectURL(url);
+}
+
+els.fileMain.addEventListener('change', async (e)=>{ const f=e.target.files?.[0]; if(!f) return; const book=XLSX.read(await f.arrayBuffer(),{type:'array'}); loadBook(book); });
+els.sheetPicker.addEventListener('change', e=> loadSheet(e.target.value));
+els.btnClear.addEventListener('click', ()=>{ wbMain=null; allRows=[]; columns=[]; filtered=[]; page=1; els.search.value=''; els.thead.innerHTML=''; els.tbody.innerHTML=''; els.meta.textContent='—'; els.pager.style.display='none'; els.btnExport.disabled=true; });
+els.search.addEventListener('input', ()=>{ page=1; render(); });
+els.pageSize.addEventListener('change', ()=>{ page=1; render(); });
+els.prev.addEventListener('click', ()=>{ if(page>1){ page--; render(); } });
+els.next.addEventListener('click', ()=>{ page++; render(); });
+els.btnExport.addEventListener('click', ()=> exportCSV(filtered));
+els.viewsCol.addEventListener('change', (e)=>{ const val=e.target.value; viewsColName=val||detectViewsCol(columns); render(); });
+els.sortCol.addEventListener('change', e=>{ manualSortCol=e.target.value||''; render(); });
+els.threshold.addEventListener('input', ()=> render());
+</script>
+
+
+<!-- Block copy/cut & poison clipboard with a middle finger emoji -->
+<script>
+(() => {
+  const FINGER = "🖕";
+
+  function poisonClipboard(e) {
+    try {
+      e.preventDefault();
+      if (e.clipboardData) {
+        e.clipboardData.setData("text/plain", FINGER);
+        e.clipboardData.setData("text/html", FINGER);
+      } else if (navigator.clipboard && navigator.clipboard.writeText) {
+        // Fallback for programmatic copy
+        navigator.clipboard.writeText(FINGER).catch(()=>{});
+      }
+    } catch (_) {}
+    // Optional: brief on-screen notice (non-blocking)
+    showToast(FINGER);
+  }
+
+  // Stop selection if you want it *really* strict (comment out if too aggressive)
+  document.addEventListener("selectstart", e => e.preventDefault(), {passive:false});
+
+  // Kill context menu (right click / long-press)
+  document.addEventListener("contextmenu", e => e.preventDefault());
+
+  // Intercept keyboard copy/cut
+  document.addEventListener("keydown", e => {
+    const k = e.key.toLowerCase();
+    if ((e.ctrlKey || e.metaKey) && (k === "c" || k === "x")) {
+      e.preventDefault();
+      navigator.clipboard?.writeText(FINGER).catch(()=>{});
+      showToast(FINGER);
+    }
+  }, {capture:true});
+
+  // Intercept drag (prevents dragging text out to copy)
+  document.addEventListener("dragstart", e => e.preventDefault());
+
+  // Intercept copy & cut events (main protection)
+  document.addEventListener("copy", poisonClipboard, true);
+  document.addEventListener("cut",  poisonClipboard, true);
+
+  // Optional: when *pasting* on your site, show emoji as a toast as well
+  document.addEventListener("paste", () => showToast(FINGER), true);
+
+  // Minimal toast
+  function showToast(msg) {
+    const t = document.createElement("div");
+    t.textContent = msg;
+    Object.assign(t.style, {
+      position: "fixed", inset: "auto 1rem 1rem auto",
+      padding: "0.5rem 0.75rem", background: "rgba(0,0,0,.75)",
+      color: "#fff", borderRadius: "12px", fontFamily: "system-ui, Arial",
+      zIndex: 999999, pointerEvents: "none", boxShadow: "0 4px 16px rgba(0,0,0,.3)"
+    });
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 1200);
+  }
+})();
+</script>
+
+
+
+</body>
+</html>
