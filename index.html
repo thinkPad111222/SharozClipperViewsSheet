@@ -303,71 +303,10 @@ els.threshold.addEventListener('input', ()=> render());
 </script>
 
 
-<!-- Block copy/cut & poison clipboard with a middle finger emoji -->
-<script>
-(() => {
-  const FINGER = "🖕";
-
-  function poisonClipboard(e) {
-    try {
-      e.preventDefault();
-      if (e.clipboardData) {
-        e.clipboardData.setData("text/plain", FINGER);
-        e.clipboardData.setData("text/html", FINGER);
-      } else if (navigator.clipboard && navigator.clipboard.writeText) {
-        // Fallback for programmatic copy
-        navigator.clipboard.writeText(FINGER).catch(()=>{});
-      }
-    } catch (_) {}
-    // Optional: brief on-screen notice (non-blocking)
-    showToast(FINGER);
-  }
-
-  // Stop selection if you want it *really* strict (comment out if too aggressive)
-  document.addEventListener("selectstart", e => e.preventDefault(), {passive:false});
-
-  // Kill context menu (right click / long-press)
-  document.addEventListener("contextmenu", e => e.preventDefault());
-
-  // Intercept keyboard copy/cut
-  document.addEventListener("keydown", e => {
-    const k = e.key.toLowerCase();
-    if ((e.ctrlKey || e.metaKey) && (k === "c" || k === "x")) {
-      e.preventDefault();
-      navigator.clipboard?.writeText(FINGER).catch(()=>{});
-      showToast(FINGER);
-    }
-  }, {capture:true});
-
-  // Intercept drag (prevents dragging text out to copy)
-  document.addEventListener("dragstart", e => e.preventDefault());
-
-  // Intercept copy & cut events (main protection)
-  document.addEventListener("copy", poisonClipboard, true);
-  document.addEventListener("cut",  poisonClipboard, true);
-
-  // Optional: when *pasting* on your site, show emoji as a toast as well
-  document.addEventListener("paste", () => showToast(FINGER), true);
-
-  // Minimal toast
-  function showToast(msg) {
-    const t = document.createElement("div");
-    t.textContent = msg;
-    Object.assign(t.style, {
-      position: "fixed", inset: "auto 1rem 1rem auto",
-      padding: "0.5rem 0.75rem", background: "rgba(0,0,0,.75)",
-      color: "#fff", borderRadius: "12px", fontFamily: "system-ui, Arial",
-      zIndex: 999999, pointerEvents: "none", boxShadow: "0 4px 16px rgba(0,0,0,.3)"
-    });
-    document.body.appendChild(t);
-    setTimeout(() => t.remove(), 1200);
-  }
-})();
-</script>
-
 
 
 </body>
 </html>
+
 
 
